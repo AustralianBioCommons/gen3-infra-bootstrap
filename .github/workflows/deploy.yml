@@ -39,6 +39,7 @@ jobs:
           ENV_NAME: ${{ vars.ENV_NAME }}
           HOSTNAME: ${{ vars.HOSTNAME }}
           FEATURES: ${{ vars.FEATURES }}
+          DB_MASTER_SECRET_NAME: ${{ secrets.DB_MASTER_SECRET_NAME }}
           WTS_OIDC_CLIENT_ID:     ${{ secrets.WTS_OIDC_CLIENT_ID }}
           WTS_OIDC_CLIENT_SECRET: ${{ secrets.WTS_OIDC_CLIENT_SECRET }}
         run: npx cdk synth
@@ -51,4 +52,4 @@ jobs:
           FEATURES: ${{ vars.FEATURES }}
           WTS_OIDC_CLIENT_ID:     ${{ secrets.WTS_OIDC_CLIENT_ID }}
           WTS_OIDC_CLIENT_SECRET: ${{ secrets.WTS_OIDC_CLIENT_SECRET }}
-        run: npm run deploy
+        run: npx cdk deploy --require-approval=never

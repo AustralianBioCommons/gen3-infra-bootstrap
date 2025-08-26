@@ -77,7 +77,11 @@ export class Gen3Secrets extends Construct {
       runtime: Runtime.NODEJS_20_X,
       memorySize: 256,
       timeout: cdk.Duration.minutes(5),
-      bundling: { externalModules: [] }, // bundle aws-sdk v3 from package.json
+      bundling: { 
+        // defaults already try local first when esbuild is present
+        minify: true,
+        target: "node20",
+        externalModules: [] }, // bundle aws-sdk v3 from package.json
     });
 
     // IAM: Get/Describe on master, Create/Tag/Describe for new

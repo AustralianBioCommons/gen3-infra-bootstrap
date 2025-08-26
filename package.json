@@ -2,7 +2,7 @@
   "name": "gen3-infra-bootstrap",
   "version": "0.1.0",
   "bin": {
-    "gen3-infra-bootstrap": "bin/app.js"
+    "gen3-infra-bootstrap": "bin/gen3-infra-bootstrap.js"
   },
   "scripts": {
     "build": "tsc",

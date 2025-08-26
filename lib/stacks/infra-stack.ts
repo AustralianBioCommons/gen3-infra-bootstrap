@@ -28,6 +28,12 @@ export class InfraStack extends cdk.Stack {
     // Example infra used by secrets
     const safeHost = bucketSafeFromHostname(hostname);
 
+    const pelicanBucket = new s3.Bucket(this, "PelicanBucket", {
+      bucketName: `pelican-${safeHost}`, // e.g., pelican-commons-heartdata-baker-edu-au
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+    });
+
     const manifestBucket = new s3.Bucket(this, "ManifestBucket", {
       bucketName: `manifest-${safeHost}`, // e.g., manifest-omix3-test-biocommons-org-au
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -48,7 +54,7 @@ export class InfraStack extends cdk.Stack {
     new Gen3Secrets(this, "Gen3Secrets", {
       project,
       envName,
-      masterSecretName: process.env.MASTER_SECRET_NAME ?? `${project}-master-${envName}-rds`,
+      masterSecretName: process.env.DB_MASTER_SECRET_NAME ?? `${project}-master-${envName}-rds`,
 
       create: {
         metadataG3auto: !!features.metadataG3auto,
@@ -66,8 +72,9 @@ export class InfraStack extends cdk.Stack {
         // Manifest service
         manifestBucketName: manifestBucket.bucketName,
         manifestPrefix: "",
+        pelicanBucketName: pelicanBucket.bucketName,
 
-        // WTS OIDC – optional (placeholders "||" written if absent)
+        // WTS OIDC – optional (placeholders "replace-me" written if absent)
         oidcClientId: process.env.WTS_OIDC_CLIENT_ID,
         oidcClientSecret: process.env.WTS_OIDC_CLIENT_SECRET,
 

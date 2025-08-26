@@ -7,7 +7,7 @@ const app = new cdk.App();
 const project  = process.env.PROJECT  ?? app.node.tryGetContext("project");
 const envName  = process.env.ENV_NAME ?? app.node.tryGetContext("envName");
 const hostname = process.env.HOSTNAME ?? app.node.tryGetContext("hostname");
-const masterSecretName = process.env.MASTER_SECRET_NAME ?? app.node.tryGetContext("masterSecretName");
+const masterSecretName = process.env.DB_MASTER_SECRET_NAME ?? app.node.tryGetContext("masterSecretName");
 
 // Optional feature toggles: comma-separated list (e.g., "metadataG3auto,wtsG3auto")
 const featuresCsv = process.env.FEATURES ?? app.node.tryGetContext("features") ?? "metadataG3auto,wtsG3auto,manifestserviceG3auto,auditGen3auto,ssjdispatcherCreds";

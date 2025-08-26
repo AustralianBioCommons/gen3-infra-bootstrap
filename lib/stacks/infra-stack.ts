@@ -48,7 +48,7 @@ export class InfraStack extends cdk.Stack {
     new Gen3Secrets(this, "Gen3Secrets", {
       project,
       envName,
-      masterSecretName: process.env.MASTER_SECRET_NAME ?? `${project}-master-${envName}-rds`,
+      masterSecretName: process.env.DB_MASTER_SECRET_NAME ?? `${project}-master-${envName}-rds`,
 
       create: {
         metadataG3auto: !!features.metadataG3auto,

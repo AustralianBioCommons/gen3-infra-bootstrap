@@ -1,0 +1,29 @@
+#!/usr/bin/env node
+import * as cdk from "aws-cdk-lib";
+import { InfraStack } from "../lib/stacks/infra-stack";
+
+const app = new cdk.App();
+
+const project  = process.env.PROJECT  ?? app.node.tryGetContext("project");
+const envName  = process.env.ENV_NAME ?? app.node.tryGetContext("envName");
+const hostname = process.env.HOSTNAME ?? app.node.tryGetContext("hostname");
+
+// Optional feature toggles: comma-separated list (e.g., "metadataG3auto,wtsG3auto")
+const featuresCsv = process.env.FEATURES ?? app.node.tryGetContext("features") ?? "metadataG3auto,wtsG3auto,manifestserviceG3auto,auditGen3auto,ssjdispatcherCreds";
+const features = featuresCsv.split(",").reduce((acc: Record<string, boolean>, f: string) => {
+  const k = f.trim();
+  if (k) acc[k] = true;
+  return acc;
+}, {});
+
+if (!project || !envName || !hostname) {
+  throw new Error("Missing PROJECT / ENV_NAME / HOSTNAME (env or -c).");
+}
+
+new InfraStack(app, `Gen3-Infra-${project}-${envName}`, {
+  env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+  project,
+  envName,
+  hostname,
+  features,
+});

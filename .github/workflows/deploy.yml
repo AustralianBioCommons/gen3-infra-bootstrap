@@ -51,4 +51,4 @@ jobs:
           FEATURES: ${{ vars.FEATURES }}
           WTS_OIDC_CLIENT_ID:     ${{ secrets.WTS_OIDC_CLIENT_ID }}
           WTS_OIDC_CLIENT_SECRET: ${{ secrets.WTS_OIDC_CLIENT_SECRET }}
-        run: npm run deploy
+        run: npx cdk deploy --require-approval=never

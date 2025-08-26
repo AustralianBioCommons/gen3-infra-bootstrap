@@ -1,0 +1,54 @@
+name: Deploy
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Pick project/env"
+        type: choice
+        required: true
+        options: [omix3-test, omix3-prod, acdc-test, acdc-prod]
+        default: acdc-test
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: gen3-bootstrap-${{ inputs.environment }}
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS creds (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
+
+      - name: Install deps
+        run: npm ci
+
+      - name: CDK synth
+        env:
+          PROJECT:  ${{ vars.PROJECT }}
+          ENV_NAME: ${{ vars.ENV_NAME }}
+          HOSTNAME: ${{ vars.HOSTNAME }}
+          FEATURES: ${{ vars.FEATURES }}
+          WTS_OIDC_CLIENT_ID:     ${{ secrets.WTS_OIDC_CLIENT_ID }}
+          WTS_OIDC_CLIENT_SECRET: ${{ secrets.WTS_OIDC_CLIENT_SECRET }}
+        run: npx cdk synth
+
+      - name: CDK deploy
+        env:
+          PROJECT:  ${{ vars.PROJECT }}
+          ENV_NAME: ${{ vars.ENV_NAME }}
+          HOSTNAME: ${{ vars.HOSTNAME }}
+          FEATURES: ${{ vars.FEATURES }}
+          WTS_OIDC_CLIENT_ID:     ${{ secrets.WTS_OIDC_CLIENT_ID }}
+          WTS_OIDC_CLIENT_SECRET: ${{ secrets.WTS_OIDC_CLIENT_SECRET }}
+        run: npm run deploy

@@ -41,6 +41,9 @@ export interface Gen3SecretsProps {
   project: string;
   envName: string;
 
+  /** Change this to force the custom resource to re-run */
+  forceRunToken?: string;
+
   masterSecretName?: string; // defaults to <project>-master-<env>-rds
   services?: string[];       // defaults to canonical list
 
@@ -110,6 +113,7 @@ export class Gen3Secrets extends Construct {
     new cdk.CustomResource(this, "Gen3SecretsCR", {
       serviceToken: provider.serviceToken,
       properties: {
+        forceRunToken: (props.forceRunToken ?? "v1"),
         project: props.project,
         envName: props.envName,
         masterSecretName,

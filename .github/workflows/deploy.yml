@@ -39,6 +39,7 @@ jobs:
           ENV_NAME: ${{ vars.ENV_NAME }}
           HOSTNAME: ${{ vars.HOSTNAME }}
           FEATURES: ${{ vars.FEATURES }}
+          FORCE_RUN_TOKEN: ${{ github.sha }}
           DB_MASTER_SECRET_NAME: ${{ secrets.DB_MASTER_SECRET_NAME }}
           WTS_OIDC_CLIENT_ID:     ${{ secrets.WTS_OIDC_CLIENT_ID }}
           WTS_OIDC_CLIENT_SECRET: ${{ secrets.WTS_OIDC_CLIENT_SECRET }}
@@ -50,6 +51,7 @@ jobs:
           ENV_NAME: ${{ vars.ENV_NAME }}
           HOSTNAME: ${{ vars.HOSTNAME }}
           FEATURES: ${{ vars.FEATURES }}
+          FORCE_RUN_TOKEN: ${{ github.sha }}
           DB_MASTER_SECRET_NAME:  ${{ secrets.DB_MASTER_SECRET_NAME }}
           WTS_OIDC_CLIENT_ID:     ${{ secrets.WTS_OIDC_CLIENT_ID }}
           WTS_OIDC_CLIENT_SECRET: ${{ secrets.WTS_OIDC_CLIENT_SECRET }}

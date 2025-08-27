@@ -1,4 +1,10 @@
-import { SecretsManagerClient, GetSecretValueCommand, CreateSecretCommand, DescribeSecretCommand, TagResourceCommand } from "@aws-sdk/client-secrets-manager";
+import {
+  SecretsManagerClient,
+  GetSecretValueCommand,
+  CreateSecretCommand,
+  DescribeSecretCommand,
+  TagResourceCommand,
+} from "@aws-sdk/client-secrets-manager";
 import crypto from "crypto";
 
 type Primitive = string | number | boolean | null;
@@ -21,6 +27,15 @@ async function getSecretJson(secretId: string): Promise<Record<string, any>> {
   return str ? JSON.parse(str) : {};
 }
 
+async function tryGetSecretJson(secretId: string): Promise<Record<string, any> | null> {
+  try {
+    return await getSecretJson(secretId);
+  } catch (e: any) {
+    if (e?.name === "ResourceNotFoundException") return null;
+    throw e;
+  }
+}
+
 async function exists(secretId: string): Promise<boolean> {
   try {
     await sm.send(new DescribeSecretCommand({ SecretId: secretId }));
@@ -38,11 +53,13 @@ async function createIfMissing(
   tags?: Record<string, string>
 ): Promise<boolean> {
   if (await exists(name)) return false;
-  const create = await sm.send(new CreateSecretCommand({
-    Name: name,
-    SecretString: JSON.stringify(payload),
-    KmsKeyId: kmsKeyId,
-  }));
+  const create = await sm.send(
+    new CreateSecretCommand({
+      Name: name,
+      SecretString: JSON.stringify(payload),
+      KmsKeyId: kmsKeyId,
+    })
+  );
   const tagList = tags ? Object.entries(tags).map(([Key, Value]) => ({ Key, Value })) : [];
   if (tagList.length) {
     await sm.send(new TagResourceCommand({ SecretId: create.ARN!, Tags: tagList }));
@@ -50,34 +67,99 @@ async function createIfMissing(
   return true;
 }
 
+function extractGatewayFromMetadataG3auto(meta: any): string | null {
+  const envArr = meta?.["metadata.env"];
+  if (Array.isArray(envArr)) {
+    const line = envArr.find((s: any) => typeof s === "string" && s.startsWith("ADMIN_LOGINS="));
+    if (line) {
+      const val = String(line).slice("ADMIN_LOGINS=".length);
+      for (const pair of val.split(",").map((s) => s.trim())) {
+        const [user, pwd] = pair.split(":");
+        if (user === "gateway" && pwd) return pwd;
+      }
+    }
+  }
+  const b64 = meta?.["base64Authz.txt"];
+  if (typeof b64 === "string") {
+    try {
+      const plain = Buffer.from(b64, "base64").toString("utf8");
+      const [user, pwd] = plain.split(":");
+      if (user === "gateway" && pwd) return pwd;
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
+function extractSsjFromDispatcher(ssj: any): string | null {
+  const jobs = ssj?.JOBS;
+  if (Array.isArray(jobs) && jobs.length) {
+    const job = jobs.find((j: any) => j?.name === "indexing") ?? jobs[0];
+    const pwd = job?.imageConfig?.password;
+    if (typeof pwd === "string" && pwd) return pwd;
+  }
+  return null;
+}
+
 export const handler = async (event: any) => {
-  const p = event.ResourceProperties || {};
+  const props = event.ResourceProperties || {};
   const {
-    project, envName, services, masterSecretName, passwordLength, kmsKeyId, tags,
-    dbHostOverride, dbPortOverride, create, g3auto
-  } = p;
+    project,
+    envName,
+    services,
+    masterSecretName,
+    passwordLength,
+    kmsKeyId,
+    tags,
+    dbHostOverride,
+    dbPortOverride,
+    create,
+    g3auto,
+    // ⬇ add optional inputs for indexd-service
+    indexdServiceUsers,
+    indexdServiceStatic,
+  }: {
+    project: string;
+    envName: string;
+    services: string[];
+    masterSecretName?: string;
+    passwordLength?: number | string;
+    kmsKeyId?: string;
+    tags?: Record<string, string>;
+    dbHostOverride?: string;
+    dbPortOverride?: number;
+    create?: Record<string, any>;
+    g3auto?: Record<string, any>;
+    indexdServiceUsers?: string[];
+    indexdServiceStatic?: Record<string, string>;
+  } = props;
 
   if (event.RequestType === "Delete") {
     // Strictly do not delete secrets
     return { PhysicalResourceId: `gen3-secrets-${project}-${envName}` };
   }
 
+  // cache values generated earlier in this invocation
+  let _generatedGatewayAdminPwd: string | null = null;
+  let _generatedSsjIndexdPwd: string | null = null;
+
   // Resolve DB host/port (override > master secret)
   let dbHost = dbHostOverride ?? null;
   let dbPort = dbPortOverride ?? null;
   if (!dbHost || !dbPort) {
-    const master = await getSecretJson(masterSecretName);
+    const master = await getSecretJson(masterSecretName!);
     dbHost = dbHost ?? master.host;
     dbPort = dbPort ?? master.port;
   }
   if (!dbHost || !dbPort) throw new Error("Missing DB host/port (master secret or overrides)");
 
   const created: string[] = [];
-  const pwLen = parseInt(passwordLength ?? "24", 10);
+  const pwLen = parseInt(passwordLength as any ?? "24", 10);
 
   // 1) Core per-service DB creds (create-if-missing only)
   for (const svc of services as string[]) {
-    const name = `${project}-${envName}-${svc}`;
+    const secName = `${project}-${envName}-${svc}`;
     const payload = {
       username: svc,
       password: randomAlnum(pwLen),
@@ -85,7 +167,7 @@ export const handler = async (event: any) => {
       port: String(dbPort),
       database: svc,
     };
-    if (await createIfMissing(name, payload, kmsKeyId, tags)) created.push(name);
+    if (await createIfMissing(secName, payload, kmsKeyId, tags)) created.push(secName);
   }
 
   // Helpers
@@ -95,9 +177,10 @@ export const handler = async (event: any) => {
   // 2) metadata-g3auto
   if (create?.metadataG3auto) {
     if (!hostname) throw new Error("metadata-g3auto requires g3auto.hostname");
-    const name = `${project}-${envName}-metadata-g3auto`;
+    const secName = `${project}-${envName}-metadata-g3auto`;
     const db_password = randomAlnum(pwLen);
     const adminPwd = randomAlnum(pwLen);
+    _generatedGatewayAdminPwd = adminPwd;
     const base64Authz = Buffer.from(`gateway:${adminPwd}`, "utf8").toString("base64");
     const json = {
       "dbcreds.json": {
@@ -116,17 +199,17 @@ export const handler = async (event: any) => {
       ],
       "base64Authz.txt": base64Authz,
     };
-    if (await createIfMissing(name, json, kmsKeyId, tags)) created.push(name);
+    if (await createIfMissing(secName, json, kmsKeyId, tags)) created.push(secName);
   }
 
   // 3) wts-g3auto (placeholders allowed)
   if (create?.wtsG3auto) {
     if (!hostname) throw new Error("wts-g3auto requires g3auto.hostname");
-    const name = `${project}-${envName}-wts-g3auto`;
+    const secName = `${project}-${envName}-wts-g3auto`;
     const wtsBase = g3auto?.wtsBaseUrl ?? `https://${hostname}/wts/`;
     const fenceBase = g3auto?.fenceBaseUrl ?? `https://${hostname}/user/`;
-    const oidcId = g3auto?.oidcClientId ?? "replace-me";
-    const oidcSecret = g3auto?.oidcClientSecret ?? "replace-me";
+    const oidcId = g3auto?.oidcClientId ?? "REPLACE_ME";
+    const oidcSecret = g3auto?.oidcClientSecret ?? "REPLACE_ME";
     const json = {
       "appcreds.json": {
         wts_base_url: wtsBase,
@@ -138,13 +221,14 @@ export const handler = async (event: any) => {
         external_oidc: [],
       },
     };
-    if (await createIfMissing(name, json, kmsKeyId, tags)) created.push(name);
+    if (await createIfMissing(secName, json, kmsKeyId, tags)) created.push(secName);
   }
 
   // 4) pelicanservice-g3auto (prefer IRSA; keys optional)
   if (create?.pelicanserviceG3auto) {
-    if (!hostname || !g3auto?.pelicanBucketName) throw new Error("pelicanservice-g3auto requires hostname & bucket");
-    const name = `${project}-${envName}-pelicanservice-g3auto`;
+    if (!hostname || !g3auto?.pelicanBucketName)
+      throw new Error("pelicanservice-g3auto requires hostname & bucket");
+    const secName = `${project}-${envName}-pelicanservice-g3auto`;
     const json: Record<string, JSONValue> = {
       manifest_bucket_name: g3auto.pelicanBucketName,
       hostname,
@@ -153,27 +237,27 @@ export const handler = async (event: any) => {
       json["aws_access_key_id"] = g3auto.pelicanAccessKeyId;
       json["aws_secret_access_key"] = g3auto.pelicanSecretAccessKey;
     }
-    if (await createIfMissing(name, json, kmsKeyId, tags)) created.push(name);
+    if (await createIfMissing(secName, json, kmsKeyId, tags)) created.push(secName);
   }
 
   // 5) manifestservice-g3auto
   if (create?.manifestserviceG3auto) {
-    if (!hostname || !g3auto?.manifestBucketName) throw new Error("manifestservice-g3auto requires hostname & bucket");
-    const name = `${project}-${envName}-manifestservice-g3auto`;
+    if (!hostname || !g3auto?.manifestBucketName)
+      throw new Error("manifestservice-g3auto requires hostname & bucket");
+    const secName = `${project}-${envName}-manifestservice-g3auto`;
     const json = {
       manifest_bucket_name: g3auto.manifestBucketName,
       hostname,
       prefix: g3auto.manifestPrefix ?? "",
     };
-    if (await createIfMissing(name, json, kmsKeyId, tags)) created.push(name);
+    if (await createIfMissing(secName, json, kmsKeyId, tags)) created.push(secName);
   }
 
   // 6) audit-gen3auto (YAML under "config.yaml")
   if (create?.auditGen3auto) {
     if (!g3auto?.auditSqsUrl) throw new Error("audit-gen3auto requires g3auto.auditSqsUrl");
-    const name = `${project}-${envName}-audit-gen3auto`;
-    const yaml =
-`SERVER:
+    const secName = `${project}-${envName}-audit-gen3auto`;
+    const yaml = `SERVER:
   DEBUG: false
   PULL_FROM_QUEUE: false
   QUEUE_CONFIG:
@@ -187,15 +271,16 @@ QUERY_TIMEBOX_MAX_DAYS: null
 QUERY_PAGE_SIZE: 1000
 QUERY_USERNAMES: true`;
     const json = { "config.yaml": yaml };
-    if (await createIfMissing(name, json, kmsKeyId, tags)) created.push(name);
+    if (await createIfMissing(secName, json, kmsKeyId, tags)) created.push(secName);
   }
 
   // 7) ssjdispatcher-creds
   if (create?.ssjdispatcherCreds) {
     if (!g3auto?.ssjSqsUrl) throw new Error("ssjdispatcher-creds requires g3auto.ssjSqsUrl");
-    const name = `${project}-${envName}-ssjdispatcher-creds`;
+    const secName = `${project}-${envName}-ssjdispatcher-creds`;
     const idxUser = g3auto.ssjIndexdUser || "ssj";
     const idxPwd = g3auto.ssjIndexdPassword || randomAlnum(pwLen);
+    _generatedSsjIndexdPwd = idxPwd;
     const mdsUser = g3auto.ssjMetadataUser || "gateway";
     const mdsPwd = g3auto.ssjMetadataPassword || randomAlnum(pwLen);
 
@@ -222,7 +307,56 @@ QUERY_USERNAMES: true`;
         },
       ],
     };
-    if (await createIfMissing(name, json, kmsKeyId, tags)) created.push(name);
+    if (await createIfMissing(secName, json, kmsKeyId, tags)) created.push(secName);
+  }
+
+  // 8) ALWAYS create-if-missing: <project>-<env>-indexd-service
+  {
+    const secName = `${project}-${envName}-indexd-service`;
+
+    // Start with any explicit overrides the stack passed in
+    const tokens: Record<string, string> = {};
+    if (indexdServiceStatic && typeof indexdServiceStatic === "object") {
+      for (const [k, v] of Object.entries(indexdServiceStatic)) {
+        if (typeof v === "string" && v) tokens[k] = v;
+      }
+    }
+
+    // gateway: prefer just-generated admin, else pull from metadata-g3auto
+    if (!tokens["gateway"]) {
+      if (_generatedGatewayAdminPwd) {
+        tokens["gateway"] = _generatedGatewayAdminPwd;
+      } else {
+        const meta = await tryGetSecretJson(`${project}-${envName}-metadata-g3auto`);
+        const gw = meta ? extractGatewayFromMetadataG3auto(meta) : null;
+        if (gw) tokens["gateway"] = gw;
+      }
+    }
+
+    // ssj: prefer just-generated idx pwd, else pull from ssjdispatcher-creds
+    if (!tokens["ssj"]) {
+      if (_generatedSsjIndexdPwd) {
+        tokens["ssj"] = _generatedSsjIndexdPwd;
+      } else {
+        const ssj = await tryGetSecretJson(`${project}-${envName}-ssjdispatcher-creds`);
+        const ssjPwd = ssj ? extractSsjFromDispatcher(ssj) : null;
+        if (ssjPwd) tokens["ssj"] = ssjPwd;
+      }
+    }
+
+    // Required keys; DO NOT generate randoms. Unknown → 'REPLACE_ME'
+    const required =
+      Array.isArray(indexdServiceUsers) && indexdServiceUsers.length
+        ? indexdServiceUsers
+        : ["sheepdog", "fence", "ssj", "gateway"];
+
+    for (const u of required) {
+      if (!tokens[u]) tokens[u] = "REPLACE_ME";
+    }
+
+    if (await createIfMissing(secName, tokens, kmsKeyId, tags)) {
+      created.push(secName);
+    }
   }
 
   return {

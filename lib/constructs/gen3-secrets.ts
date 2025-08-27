@@ -61,6 +61,9 @@ export interface Gen3SecretsProps {
 
   dbHostOverride?: string;
   dbPortOverride?: number;
+
+  indexdServiceUsers?: string[];
+  indexdServiceStatic?: Record<string, string>;
 }
 
 export class Gen3Secrets extends Construct {
@@ -118,6 +121,8 @@ export class Gen3Secrets extends Construct {
         kmsKeyId: props.kmsKeyId,
         dbHostOverride: props.dbHostOverride,
         dbPortOverride: props.dbPortOverride,
+        indexdServiceUsers: props.indexdServiceUsers ?? undefined,
+        indexdServiceStatic: props.indexdServiceStatic ?? undefined,
       },
     });
   }

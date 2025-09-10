@@ -1,6 +1,7 @@
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import { Construct } from "constructs";
+import * as cdk from "aws-cdk-lib";
 
 export function slug(s: string) {
     return s.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
@@ -21,12 +22,13 @@ export function federatedPrincipalFromSsm(scope: Construct, project: string, env
     );
 }
 
-export function tagStandard(role: iam.Role, project: string, env: string, ns: string, sa: string) {
-    const prefix = `/gen3/${slug(project)}-${slug(env)}`;
-    const clusterName = ssm.StringParameter.valueForStringParameter(role, `${prefix}/clusterName`);
-    iam.TagManager.of(role).setTag("Project", project);
-    iam.TagManager.of(role).setTag("Environment", env);
-    iam.TagManager.of(role).setTag("KubernetesNamespace", ns);
-    iam.TagManager.of(role).setTag("KubernetesServiceAccount", sa);
-    iam.TagManager.of(role).setTag("ClusterName", clusterName);
+export function tagStandard(scope: Construct, role: iam.Role, project: string, env: string, ns: string, sa: string) {
+    const prefix = `/gen3/${project}-${env}`;
+    const clusterName = ssm.StringParameter.valueForStringParameter(scope, `${prefix}/clusterName`);
+
+    cdk.Tags.of(role).add("Project", project);
+    cdk.Tags.of(role).add("Environment", env);
+    cdk.Tags.of(role).add("KubernetesNamespace", ns);
+    cdk.Tags.of(role).add("KubernetesServiceAccount", sa);
+    cdk.Tags.of(role).add("ClusterName", clusterName); // SSM token is fine in tags
 }

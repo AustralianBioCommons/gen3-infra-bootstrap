@@ -35,24 +35,26 @@ jobs:
 
       - name: CDK synth
         env:
-          PROJECT:  ${{ vars.PROJECT }}
+          PROJECT: ${{ vars.PROJECT }}
           ENV_NAME: ${{ vars.ENV_NAME }}
           HOSTNAME: ${{ vars.HOSTNAME }}
+          NAMESPACE: ${{ vars.NAMESPACE }}
           FEATURES: ${{ vars.FEATURES }}
           FORCE_RUN_TOKEN: ${{ github.sha }}
           DB_MASTER_SECRET_NAME: ${{ secrets.DB_MASTER_SECRET_NAME }}
-          WTS_OIDC_CLIENT_ID:     ${{ secrets.WTS_OIDC_CLIENT_ID }}
+          WTS_OIDC_CLIENT_ID: ${{ secrets.WTS_OIDC_CLIENT_ID }}
           WTS_OIDC_CLIENT_SECRET: ${{ secrets.WTS_OIDC_CLIENT_SECRET }}
         run: npx cdk synth
 
       - name: CDK deploy
         env:
-          PROJECT:  ${{ vars.PROJECT }}
+          PROJECT: ${{ vars.PROJECT }}
           ENV_NAME: ${{ vars.ENV_NAME }}
           HOSTNAME: ${{ vars.HOSTNAME }}
+          NAMESPACE: ${{ vars.NAMESPACE }}
           FEATURES: ${{ vars.FEATURES }}
           FORCE_RUN_TOKEN: ${{ github.sha }}
-          DB_MASTER_SECRET_NAME:  ${{ secrets.DB_MASTER_SECRET_NAME }}
-          WTS_OIDC_CLIENT_ID:     ${{ secrets.WTS_OIDC_CLIENT_ID }}
+          DB_MASTER_SECRET_NAME: ${{ secrets.DB_MASTER_SECRET_NAME }}
+          WTS_OIDC_CLIENT_ID: ${{ secrets.WTS_OIDC_CLIENT_ID }}
           WTS_OIDC_CLIENT_SECRET: ${{ secrets.WTS_OIDC_CLIENT_SECRET }}
         run: npx cdk deploy --require-approval=never

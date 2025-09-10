@@ -4,6 +4,7 @@ import * as s3 from "aws-cdk-lib/aws-s3";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import { Gen3Secrets } from "../constructs/gen3-secrets";
 import { bucketSafeFromHostname } from "../util/names";
+import * as ssm from "aws-cdk-lib/aws-ssm";
 
 export interface InfraStackProps extends cdk.StackProps {
   project: string;
@@ -36,6 +37,12 @@ export class InfraStack extends cdk.Stack {
 
     const manifestBucket = new s3.Bucket(this, "ManifestBucket", {
       bucketName: `manifest-${safeHost}`, // e.g., manifest-omix3-test-biocommons-org-au
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+    });
+
+    const uploadsBucket = new s3.Bucket(this, "UploadsBucket", {
+      bucketName: `updaloads-${safeHost}`, // e.g., uploads-omix3-test-biocommons-org-au
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
     });
@@ -91,5 +98,28 @@ export class InfraStack extends cdk.Stack {
       passwordLength: 24,
       tags: { app: "gen3", env: envName, project: project },
     });
+
+    // S3 buckets SSM parameters
+    new ssm.StringParameter(this, "UploadsBucketNameParam", {
+      parameterName: `/gen3/${project}-${envName}/s3/uploadsBucketName`,
+      stringValue: uploadsBucket.bucketName,
+    });
+
+    new ssm.StringParameter(this, "ManifestBucketNameParam", {
+      parameterName: `/gen3/${project}-${envName}/s3/manifestBucketName`,
+      stringValue: manifestBucket.bucketName,
+    });
+
+    new ssm.StringParameter(this, "PelicanBucketNameParam", {
+      parameterName: `/gen3/${project}-${envName}/s3/pelicanBucketName`,
+      stringValue: pelicanBucket.bucketName,
+    });
+
+    // SQS queue SSM parameters
+    new ssm.StringParameter(this, "SsjDispatcherQueueArnParam", {
+      parameterName: `/gen3/${project}-${envName}/sqs/ssjdispatcherQueueArn`,
+      stringValue: dataUploadQueue.queueArn,
+    });
+
   }
 }

@@ -114,11 +114,11 @@ export class Gen3IamStack extends cdk.Stack {
             inline.forEach(s => role.addToPolicy(new iam.PolicyStatement(s)));
             // minimal tags (pull clusterName from SSM)
             const clusterName = P(this, `${base}/clusterName`);
-            iam.TagManager.of(role).setTag("Project", project);
-            iam.TagManager.of(role).setTag("Environment", envName);
-            iam.TagManager.of(role).setTag("KubernetesNamespace", namespace);
-            iam.TagManager.of(role).setTag("KubernetesServiceAccount", sa);
-            iam.TagManager.of(role).setTag("ClusterName", clusterName);
+            cdk.Tags.of(role).add("Project", project);
+            cdk.Tags.of(role).add("Environment", envName);
+            cdk.Tags.of(role).add("KubernetesNamespace", namespace);
+            cdk.Tags.of(role).add("KubernetesServiceAccount", sa);
+            cdk.Tags.of(role).add("ClusterName", clusterName);
             return role;
         };
 

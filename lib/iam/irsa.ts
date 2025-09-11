@@ -30,5 +30,5 @@ export function tagStandard(scope: Construct, role: iam.Role, project: string, e
     cdk.Tags.of(role).add("Environment", env);
     cdk.Tags.of(role).add("KubernetesNamespace", ns);
     cdk.Tags.of(role).add("KubernetesServiceAccount", sa);
-    cdk.Tags.of(role).add("ClusterName", clusterName); // SSM token is fine in tags
+    cdk.Tags.of(role).add("ClusterName", clusterName);
 }

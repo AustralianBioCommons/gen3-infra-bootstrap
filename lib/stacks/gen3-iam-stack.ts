@@ -2,6 +2,7 @@ import * as cdk from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import { Construct } from "constructs";
+import { readRequired, readOptional } from "../utils/ssm";
 
 const P = (scope: Construct, p: string) =>
     ssm.StringParameter.valueForStringParameter(scope, p, 1); // simple helper
@@ -23,17 +24,20 @@ export class Gen3IamStack extends cdk.Stack {
         const { project, envName, namespace } = props;
         const base = `/gen3/${project}-${envName}`;
 
-        // Discover everything from SSM
-        const uploadsBucketName = tryParam(this, `${base}/s3/uploadsBucketName`);
-        const manifestBucketName = tryParam(this, `${base}/s3/manifestBucketName`);
-        const sqsQueueArn = tryParam(this, `${base}/sqs/ssjdispatcherQueueArn`);
-        const esDomainArn = tryParam(this, `${base}/opensearch/domainArn`);
-        const kmsDataKeyArn = tryParam(this, `${base}/kms/dataKeyArn`);
-        const fenceDbSecretArn = tryParam(this, `${base}/secrets/fenceDbArn`);
+        // core (must exist)
+        const issuer = readRequired(this, `${base}/oidcIssuer`);
+        const providerArn = readRequired(this, `${base}/oidcProviderArn`);
+        const clusterName = readRequired(this, `${base}/clusterName`);
 
-        // IRSA trust (issuer/provider from SSM)
-        const issuer = P(this, `${base}/oidcIssuer`);
-        const providerArn = P(this, `${base}/oidcProviderArn`);
+        // optional (skip if absent)
+        const uploadsBucketName = readOptional(this, `${base}/s3/uploadsBucketName`);
+        const manifestBucketName = readOptional(this, `${base}/s3/manifestBucketName`);
+        const sqsQueueArn = readOptional(this, `${base}/sqs/ssjdispatcherQueueArn`);
+        const esDomainArn = readOptional(this, `${base}/opensearch/domainArn`);
+        const kmsDataKeyArn = readOptional(this, `${base}/kms/dataKeyArn`);
+        const fenceDbSecretArn = readOptional(this, `${base}/secrets/fenceDbArn`);
+        const nfUserArnPrefix = readOptional(this, `${base}/iam/nfUserArnPrefix`);
+
 
         const irsa = (sa: string) =>
             new iam.FederatedPrincipal(

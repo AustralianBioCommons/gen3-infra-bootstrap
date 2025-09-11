@@ -3,7 +3,7 @@ import { Construct } from "constructs";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import { Gen3Secrets } from "../constructs/gen3-secrets";
-import { bucketSafeFromHostname } from "../util/names";
+import { bucketSafeFromHostname } from "../utils/names";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 
 export interface InfraStackProps extends cdk.StackProps {

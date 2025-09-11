@@ -14,3 +14,11 @@ export function readOptional(scope: Construct, path: string): string | undefined
         return undefined;
     }
 }
+
+/** Simple slugifier for names/ids. */
+export function slug(s: string): string {
+    return s.toLowerCase()
+        .replace(/[^a-z0-9-]/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
+}

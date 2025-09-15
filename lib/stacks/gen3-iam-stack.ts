@@ -3,6 +3,8 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import { Construct } from "constructs";
 import { readRequired, readOptional, slug } from "../utils/ssm";
+import { bucketSafeFromHostname } from "../utils/names";
+
 
 export interface Gen3IamStackProps extends cdk.StackProps {
     /** Project key, e.g. "acdc", "omix3" */
@@ -11,10 +13,12 @@ export interface Gen3IamStackProps extends cdk.StackProps {
     envName: string;
     /** Kubernetes namespace for these services, e.g. "omix3" */
     namespace: string;
-    /** Optional override: full SSM base key, e.g. "acdc-prodacdc". If set, we read from /gen3/<envKey> */
+    /** Optional override: full SSM base key. If set, we read from /gen3/<envKey> */
     envKey?: string;
     /** Optional: name of a permissions boundary to apply to all roles */
     permissionBoundaryName?: string;
+    /** Optional: hostname to derive user pattern for hatchery role */
+    hostname: string;
 }
 
 export class Gen3IamStack extends cdk.Stack {
@@ -24,9 +28,11 @@ export class Gen3IamStack extends cdk.Stack {
         const project = slug(props.project);
         const envName = slug(props.envKey ?? props.envName);
         const namespace = props.namespace;
-        const base = props.envKey
-            ? `/gen3/${props.envKey}`
-            : `/gen3/${project}-${envName}`;
+        const hostname = props.hostname;
+        if (!hostname) {
+            throw new Error("Gen3IamStack: hostname is required");
+        }
+        const base = props.envKey ? `/gen3/${props.envKey}` : `/gen3/${project}-${envName}`;
 
         // ---- Core SSM (required)
         const issuer = readRequired(this, `${base}/oidcIssuer`);        // hostpath only
@@ -38,9 +44,8 @@ export class Gen3IamStack extends cdk.Stack {
         const manifestBucketName = readOptional(this, `${base}/s3/manifestBucketName`);
         const sqsQueueArn = readOptional(this, `${base}/sqs/ssjdispatcherQueueArn`);
         const esDomainArn = readOptional(this, `${base}/opensearch/domainArn`);
-        const kmsDataKeyArn = readOptional(this, `${base}/kms/dataKeyArn`);
-        const fenceDbSecretArn = readOptional(this, `${base}/secrets/fenceDbArn`);
-        const nfUserArnPrefix = readOptional(this, `${base}/iam/nfUserArnPrefix`);
+        // const kmsDataKeyArn = readOptional(this, `${base}/kms/dataKeyArn`);
+        // const fenceDbSecretArn = readOptional(this, `${base}/secrets/fenceDbArn`);
 
         // ---- Helpers
         const roleName = (svc: string) => `gen3-${project}-${envName}-${slug(svc)}-role`;
@@ -73,7 +78,31 @@ export class Gen3IamStack extends cdk.Stack {
         };
 
         // ---- Managed policy blocks (create only when inputs exist)
-        const managed: Partial<Record<"S3UploadsRW" | "ManifestRW" | "SqsConsume" | "EsHttp", iam.ManagedPolicy>> = {};
+        const managed: Partial<Record<"S3UploadsRW" | "ManifestRW" | "SqsConsume" | "EsHttp" | "ExternalSecretsRead", iam.ManagedPolicy>> = {};
+
+        managed.ExternalSecretsRead = new iam.ManagedPolicy(this, "Gen3ExternalSecretsRead", {
+            managedPolicyName: `Gen3-${project}-${envName}-ExternalSecretsRead`,
+            statements: [
+                new iam.PolicyStatement({
+                    effect: iam.Effect.ALLOW,
+                    actions: [
+                        "kms:Decrypt",
+                        "secretsmanager:DescribeSecret",
+                        "secretsmanager:GetResourcePolicy",
+                        "secretsmanager:GetSecretValue",
+                        "secretsmanager:ListSecretVersionIds",
+                        "secretsmanager:ListSecrets",
+                        "ssm:DescribeParameters",
+                        "ssm:GetParameter",
+                        "ssm:GetParameterHistory",
+                        "ssm:GetParameters",
+                        "ssm:GetParametersByPath",
+                    ],
+                    resources: ["*"],
+                }),
+            ],
+        });
+
 
         if (uploadsBucketName) {
             managed.S3UploadsRW = new iam.ManagedPolicy(this, "Gen3S3UploadsRW", {
@@ -162,11 +191,13 @@ export class Gen3IamStack extends cdk.Stack {
         // fence (needs uploads bucket; optional KMS/Secrets)
         if (managed.S3UploadsRW) {
             const inline: iam.PolicyStatementProps[] = [];
-            if (kmsDataKeyArn) inline.push({ actions: ["kms:Decrypt"], resources: [kmsDataKeyArn] });
-            if (fenceDbSecretArn) inline.push({
-                actions: ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
-                resources: [fenceDbSecretArn],
-            });
+            // if (kmsDataKeyArn) inline.push({ actions: ["kms:Decrypt"], resources: [kmsDataKeyArn] });
+            // if (fenceDbSecretArn) {
+            //     inline.push({
+            //         actions: ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+            //         resources: [fenceDbSecretArn],
+            //     });
+            // }
             mk("fence", "fence-sa", [managed.S3UploadsRW], inline);
         }
 
@@ -187,12 +218,15 @@ export class Gen3IamStack extends cdk.Stack {
         }
 
         // hatchery (optional user pattern param)
-        if (nfUserArnPrefix) {
-            const nfList = new iam.ManagedPolicy(this, "Gen3NfListAccessKeys", {
-                managedPolicyName: `Gen3-${project}-${envName}-NfListAccessKeys`,
-                statements: [new iam.PolicyStatement({ actions: ["iam:ListAccessKeys"], resources: [nfUserArnPrefix] })],
-            });
-            mk("hatchery", "hatchery-service-account", [nfList]);
-        }
+        const nfUser = bucketSafeFromHostname(hostname)
+        const nfList = new iam.ManagedPolicy(this, "Gen3NfListAccessKeys", {
+            managedPolicyName: `Gen3-${project}-${envName}-NfListAccessKeys`,
+            statements: [new iam.PolicyStatement({ actions: ["iam:ListAccessKeys"], resources: [`arn:aws:iam::${this.account}:user/${nfUser}-nf-*`] })],
+        });
+        mk("hatchery", "hatchery-service-account", [nfList]);
+
+        // external-secrets (reads Secrets Manager + SSM; broad read per requirements)
+        mk("external-secrets", "external-secrets-sa", [managed.ExternalSecretsRead]);
+
     }
 }

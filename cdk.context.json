@@ -1,0 +1,9 @@
+{
+  "ssm:account=416298298491:parameterName=/gen3/acdc-prodacdc/oidcIssuer:region=ap-southeast-2": "oidc.eks.ap-southeast-2.amazonaws.com/id/1D3A5EA9403A66FCB8018DB83818A717",
+  "ssm:account=416298298491:parameterName=/gen3/acdc-prodacdc/s3/uploadsBucketName:region=ap-southeast-2": "updaloads-commons-heartdata-baker-edu-au",
+  "ssm:account=416298298491:parameterName=/gen3/acdc-prodacdc/s3/manifestBucketName:region=ap-southeast-2": "manifest-commons-heartdata-baker-edu-au",
+  "ssm:account=416298298491:parameterName=/gen3/acdc-prodacdc/sqs/ssjdispatcherQueueArn:region=ap-southeast-2": "arn:aws:sqs:ap-southeast-2:416298298491:data-upload-acdc-prodacdc",
+  "ssm:account=416298298491:parameterName=/gen3/acdc-prodacdc/opensearch/domainArn:region=ap-southeast-2": "arn:aws:es:ap-southeast-2:416298298491:domain/cad-prodacdc",
+  "ssm:account=416298298491:parameterName=/gen3/acdc-prodacdc/oidcProviderArn:region=ap-southeast-2": "arn:aws:iam::416298298491:oidc-provider/oidc.eks.ap-southeast-2.amazonaws.com/id/1D3A5EA9403A66FCB8018DB83818A717",
+  "ssm:account=416298298491:parameterName=/gen3/acdc-prodacdc/clusterName:region=ap-southeast-2": "gen3-cad-production"
+}

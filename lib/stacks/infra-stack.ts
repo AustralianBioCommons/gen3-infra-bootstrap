@@ -47,6 +47,18 @@ export class InfraStack extends cdk.Stack {
       encryption: s3.BucketEncryption.S3_MANAGED,
     });
 
+    const schemaBucket = new s3.Bucket(this, "schemaBucket", {
+      bucketName: `schema-${safeHost}`, // e.g., schema-omix3-test-biocommons-org-au
+      publicReadAccess: true,
+      blockPublicAccess: new s3.BlockPublicAccess({
+        blockPublicAcls: false,
+        blockPublicPolicy: false,
+        ignorePublicAcls: false,
+        restrictPublicBuckets: false,
+      }),
+      encryption: s3.BucketEncryption.S3_MANAGED,
+    });
+
     const auditQueue = new sqs.Queue(this, "AuditQueue", {
       queueName: `audit-service-${project}-${envName}`,
       visibilityTimeout: cdk.Duration.seconds(60),

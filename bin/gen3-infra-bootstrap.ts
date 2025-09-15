@@ -35,5 +35,6 @@ const iamStack = new Gen3IamStack(app, `Gen3-IamRoles-${project}-${envName}`, {
   env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
   project,
   envName,
-  namespace
+  namespace,
+  hostname,
 }).addDependency(infra);

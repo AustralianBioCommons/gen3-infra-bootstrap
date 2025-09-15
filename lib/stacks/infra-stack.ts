@@ -42,7 +42,7 @@ export class InfraStack extends cdk.Stack {
     });
 
     const uploadsBucket = new s3.Bucket(this, "UploadsBucket", {
-      bucketName: `updaloads-${safeHost}`, // e.g., uploads-omix3-test-biocommons-org-au
+      bucketName: `uploads-${safeHost}`, // e.g., uploads-omix3-test-biocommons-org-au
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
     });

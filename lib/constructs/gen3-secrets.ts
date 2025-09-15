@@ -54,6 +54,7 @@ export interface Gen3SecretsProps {
     manifestserviceG3auto?: boolean;
     auditGen3auto?: boolean;
     ssjdispatcherCreds?: boolean;
+    fenceJwtPrivateKey?: boolean,
   };
 
   g3auto?: G3autoInputs;
@@ -75,7 +76,7 @@ export class Gen3Secrets extends Construct {
 
     const masterSecretName = props.masterSecretName ?? `${props.project}-master-${props.envName}-rds`;
     const services = props.services ?? [
-      "index","requestor","fence","peregrine","wts","audit","manifestservice","metadata","arborist","sheepdog"
+      "index", "requestor", "fence", "peregrine", "wts", "audit", "manifestservice", "metadata", "arborist", "sheepdog"
     ];
 
     const onEvent = new NodejsFunction(this, "Gen3SecretsOnEvent", {
@@ -83,11 +84,12 @@ export class Gen3Secrets extends Construct {
       runtime: Runtime.NODEJS_20_X,
       memorySize: 256,
       timeout: cdk.Duration.minutes(5),
-      bundling: { 
+      bundling: {
         // defaults already try local first when esbuild is present
         minify: true,
         target: "node20",
-        externalModules: [] }, // bundle aws-sdk v3 from package.json
+        externalModules: []
+      }, // bundle aws-sdk v3 from package.json
     });
 
     // IAM: Get/Describe on master, Create/Tag/Describe for new
@@ -96,12 +98,12 @@ export class Gen3Secrets extends Construct {
       resources: ["*"], // master name unknown at synth; narrow if you have ARN
     }));
     onEvent.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["secretsmanager:CreateSecret","secretsmanager:TagResource","secretsmanager:DescribeSecret"],
+      actions: ["secretsmanager:CreateSecret", "secretsmanager:TagResource", "secretsmanager:DescribeSecret"],
       resources: ["*"],
     }));
     if (props.kmsKeyId) {
       onEvent.addToRolePolicy(new iam.PolicyStatement({
-        actions: ["kms:Encrypt","kms:DescribeKey"],
+        actions: ["kms:Encrypt", "kms:DescribeKey"],
         resources: [props.kmsKeyId],
       }));
     }

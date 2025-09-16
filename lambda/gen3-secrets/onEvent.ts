@@ -297,7 +297,7 @@ export const handler = async (event: any) => {
   // 6) audit-gen3auto
   if (create?.auditGen3auto) {
     if (!g3auto?.auditSqsUrl) throw new Error("audit-gen3auto requires g3auto.auditSqsUrl");
-    const secName = `${project}-${envName}-audit-gen3auto`;
+    const secName = `${project}-${envName}-audit-g3auto`;
     const yaml = `SERVER:
   DEBUG: false
   PULL_FROM_QUEUE: false

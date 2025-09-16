@@ -17,6 +17,7 @@ export interface InfraStackProps extends cdk.StackProps {
     manifestserviceG3auto?: boolean;
     auditGen3auto?: boolean;
     ssjdispatcherCreds?: boolean;
+    fenceJwtPrivateKey?: boolean,
   };
 }
 
@@ -83,6 +84,7 @@ export class InfraStack extends cdk.Stack {
         manifestserviceG3auto: !!features.manifestserviceG3auto,
         auditGen3auto: !!features.auditGen3auto,
         ssjdispatcherCreds: !!features.ssjdispatcherCreds,
+        fenceJwtPrivateKey: !!features.fenceJwtPrivateKey,
       },
 
       g3auto: {

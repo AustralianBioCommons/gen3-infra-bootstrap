@@ -76,7 +76,7 @@ export class Gen3Secrets extends Construct {
 
     const masterSecretName = props.masterSecretName ?? `${props.project}-master-${props.envName}-rds`;
     const services = props.services ?? [
-      "index", "requestor", "fence", "peregrine", "wts", "audit", "manifestservice", "metadata", "arborist", "sheepdog"
+      "indexd", "requestor", "fence", "peregrine", "wts", "audit", "manifestservice", "metadata", "arborist", "sheepdog"
     ];
 
     const onEvent = new NodejsFunction(this, "Gen3SecretsOnEvent", {

@@ -204,6 +204,7 @@ export const handler = async (event: any) => {
       host: String(dbHost),
       port: String(dbPort),
       database: svc,
+      dbcreated: "",
     };
     if (await createIfMissing(secName, payload, kmsKeyId, tags)) {
       created.push(secName);

@@ -191,36 +191,20 @@ export class Gen3IamStack extends cdk.Stack {
         // fence (needs uploads bucket; optional KMS/Secrets)
         if (managed.S3UploadsRW) {
             const inline: iam.PolicyStatementProps[] = [];
-            // if (kmsDataKeyArn) inline.push({ actions: ["kms:Decrypt"], resources: [kmsDataKeyArn] });
-            // if (fenceDbSecretArn) {
-            //     inline.push({
-            //         actions: ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
-            //         resources: [fenceDbSecretArn],
-            //     });
-            // }
             const fenceRole = mk("fence", "fence-sa", [managed.S3UploadsRW], inline);
 
-            // ---- Allow this role to AssumeRole into itself, WITHOUT creating a CFN cycle
-            const rolePath = `/gen3/${project}/${envName}/`; // must match the 'path' you set on the role
-            const selfArnLiteral = `arn:${cdk.Stack.of(this).partition}:iam::${this.account}:role${rolePath}${fenceRole.roleName}`;
-            const selfArn = cdk.Stack.of(this).formatArn({
-                service: "iam",
-                region: "",
-                resource: "role",
-                // include the path + name for correct ARN: role/gen3/acdc/prodacdc/gen3-acdc-prodacdc-fence-role
-                resourceName: `${rolePath}${fenceRole.roleName}`,
-                arnFormat: cdk.ArnFormat.SLASH_RESOURCE_NAME,
-            });
+            // Add self-assume without referencing the role resource (no CFN cycle)
+            const rolePath = `/gen3/${project}/${envName}/`;                 // must match role.path in mk()
+            const selfArnLiteral =
+                `arn:${cdk.Stack.of(this).partition}:iam::${this.account}:role${rolePath}${roleName("fence")}`;
 
-            fenceRole.assumeRolePolicy!.addStatements(new iam.PolicyStatement({
-                effect: iam.Effect.ALLOW,
-                principals: [new iam.AccountPrincipal(this.account)],  // no direct reference to the role
-                actions: ["sts:AssumeRole"],
-                conditions: {
-                    StringEquals: { "aws:PrincipalArn": selfArnLiteral }, // restrict strictly to this role
-                },
-            }));
-
+            fenceRole.assumeRolePolicy!.addStatements(
+                new iam.PolicyStatement({
+                    effect: iam.Effect.ALLOW,
+                    principals: [new iam.ArnPrincipal(selfArnLiteral)],        // literal ARN, not fenceRole.roleArn
+                    actions: ["sts:AssumeRole"],
+                })
+            )
         }
 
         // ssjdispatcher (svc + job) needs SQS + uploads bucket

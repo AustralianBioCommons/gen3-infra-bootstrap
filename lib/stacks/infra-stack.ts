@@ -49,6 +49,7 @@ export class InfraStack extends cdk.Stack {
       bucketName: `uploads-${safeHost}`, // e.g., uploads-omix3-test-biocommons-org-au
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
+      eventBridgeEnabled: true,
     });
 
     // --- SNS topic for upload notifications ---
@@ -78,9 +79,7 @@ export class InfraStack extends cdk.Stack {
       visibilityTimeout: cdk.Duration.seconds(60),
     });
 
-    uploadTopic.addSubscription(new SqsSubscription(dataUploadQueue, {
-      rawMessageDelivery: true,
-    }));
+    uploadTopic.addSubscription(new SqsSubscription(dataUploadQueue));
 
     uploadsBucket.addEventNotification(
       s3.EventType.OBJECT_CREATED,

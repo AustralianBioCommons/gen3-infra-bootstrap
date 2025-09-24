@@ -5,6 +5,9 @@ import * as sqs from "aws-cdk-lib/aws-sqs";
 import { Gen3Secrets } from "../constructs/gen3-secrets";
 import { bucketSafeFromHostname } from "../utils/names";
 import * as ssm from "aws-cdk-lib/aws-ssm";
+import * as sns from "aws-cdk-lib/aws-sns";
+import { SqsSubscription } from "aws-cdk-lib/aws-sns-subscriptions";
+import * as s3n from "aws-cdk-lib/aws-s3-notifications";
 
 export interface InfraStackProps extends cdk.StackProps {
   project: string;
@@ -48,6 +51,11 @@ export class InfraStack extends cdk.Stack {
       encryption: s3.BucketEncryption.S3_MANAGED,
     });
 
+    // --- SNS topic for upload notifications ---
+    const uploadTopic = new sns.Topic(this, "DataUploadTopic", {
+      topicName: `dataupload-${project}-${envName}-uploads`,
+    });
+
     const schemaBucket = new s3.Bucket(this, "schemaBucket", {
       bucketName: `schema-${safeHost}`, // e.g., schema-omix3-test-biocommons-org-au
       publicReadAccess: true,
@@ -69,6 +77,16 @@ export class InfraStack extends cdk.Stack {
       queueName: `data-upload-${project}-${envName}`,
       visibilityTimeout: cdk.Duration.seconds(60),
     });
+
+    uploadTopic.addSubscription(new SqsSubscription(dataUploadQueue, {
+      rawMessageDelivery: true,
+    }));
+
+    uploadsBucket.addEventNotification(
+      s3.EventType.OBJECT_CREATED,
+      new s3n.SnsDestination(uploadTopic)
+    );
+
 
     // Secrets bootstrap (strict create-if-missing)
     new Gen3Secrets(this, "Gen3Secrets", {
@@ -105,7 +123,7 @@ export class InfraStack extends cdk.Stack {
 
         // SSJ
         ssjSqsUrl: `https://sqs.${this.region}.amazonaws.com/${this.account}/${dataUploadQueue.queueName}`,
-        ssjDataPattern: `s3://dataupload-${project}-${envName}-biocommons/*`,
+        ssjDataPattern: `s3://${uploadsBucket.bucketName}/*`,
       },
 
       // Optional: kmsKeyId, dbHostOverride, dbPortOverride

@@ -198,7 +198,26 @@ export class Gen3IamStack extends cdk.Stack {
             //         resources: [fenceDbSecretArn],
             //     });
             // }
-            mk("fence", "fence-sa", [managed.S3UploadsRW], inline);
+            const fenceRole = mk("fence", "fence-sa", [managed.S3UploadsRW], inline);
+            // allow the role to assume itself (for apps calling sts:AssumeRole)
+            const rolePath = `/gen3/${project}/${envName}/`; // you set this path in role creation
+            const selfArn = cdk.Stack.of(this).formatArn({
+                service: "iam",
+                region: "",
+                resource: "role",
+                // include the path + name for correct ARN: role/gen3/acdc/prodacdc/gen3-acdc-prodacdc-fence-role
+                resourceName: `${rolePath}${fenceRole.roleName}`,
+                arnFormat: cdk.ArnFormat.SLASH_RESOURCE_NAME,
+            });
+
+            fenceRole.assumeRolePolicy?.addStatements(
+                new iam.PolicyStatement({
+                    effect: iam.Effect.ALLOW,
+                    principals: [new iam.ArnPrincipal(selfArn)],
+                    actions: ["sts:AssumeRole"],
+                })
+            );
+
         }
 
         // ssjdispatcher (svc + job) needs SQS + uploads bucket

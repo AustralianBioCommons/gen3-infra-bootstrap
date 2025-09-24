@@ -86,7 +86,7 @@ function extractGatewayFromMetadataG3auto(meta: any): string | null {
       const plain = Buffer.from(b64, "base64").toString("utf8");
       const [user, pwd] = plain.split(":");
       if (user === "gateway" && pwd) return pwd;
-    } catch {/* ignore */}
+    } catch {/* ignore */ }
   }
   return null;
 }
@@ -99,6 +99,35 @@ function extractSsjFromDispatcher(ssj: any): string | null {
     if (typeof pwd === "string" && pwd) return pwd;
   }
   return null;
+}
+
+/** Create a plaintext secret (SecretString) if it doesn't exist */
+async function createPlainIfMissing(
+  name: string,
+  secretString: string,
+  kmsKeyId?: string,
+  tags?: Record<string, string>
+): Promise<boolean> {
+  if (await exists(name)) return false;
+  const create = await sm.send(new CreateSecretCommand({
+    Name: name,
+    SecretString: secretString,   // <- raw PEM string, not JSON
+    KmsKeyId: kmsKeyId,           // optional CMK; Secrets Manager still encrypts at rest
+  }));
+  const tagList = tags ? Object.entries(tags).map(([Key, Value]) => ({ Key, Value })) : [];
+  if (tagList.length) {
+    await sm.send(new TagResourceCommand({ SecretId: create.ARN!, Tags: tagList }));
+  }
+  return true;
+}
+
+function generateRsaKeyPairPem(modulusLength = 2048) {
+  const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", {
+    modulusLength, // 2048 is standard for RS256 JWT
+    publicKeyEncoding: { type: "spki", format: "pem" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+  return { privateKeyPem: privateKey, publicKeyPem: publicKey };
 }
 
 export const handler = async (event: any) => {
@@ -175,6 +204,7 @@ export const handler = async (event: any) => {
       host: String(dbHost),
       port: String(dbPort),
       database: svc,
+      dbcreated: "",
     };
     if (await createIfMissing(secName, payload, kmsKeyId, tags)) {
       created.push(secName);
@@ -268,7 +298,7 @@ export const handler = async (event: any) => {
   // 6) audit-gen3auto
   if (create?.auditGen3auto) {
     if (!g3auto?.auditSqsUrl) throw new Error("audit-gen3auto requires g3auto.auditSqsUrl");
-    const secName = `${project}-${envName}-audit-gen3auto`;
+    const secName = `${project}-${envName}-audit-g3auto`;
     const yaml = `SERVER:
   DEBUG: false
   PULL_FROM_QUEUE: false
@@ -375,6 +405,17 @@ QUERY_USERNAMES: true`;
     if (await createIfMissing(secName, tokens, kmsKeyId, tags)) {
       created.push(secName);
     }
+  }
+
+  // 9) fence JWT private key (PEM) — plaintext SecretString
+  if (create?.fenceJwtPrivateKey) {
+    const secName = `${project}-${envName}-fence-jwt-key`;
+    const { privateKeyPem /*, publicKeyPem*/ } = generateRsaKeyPairPem(2048);
+    if (await createPlainIfMissing(secName, privateKeyPem, kmsKeyId, tags)) {
+      created.push(secName);
+    }
+    // If you ever want to store the public key too:
+    // await createPlainIfMissing(`${project}-${envName}-fence-jwt-public-key`, publicKeyPem, kmsKeyId, tags);
   }
 
   return {

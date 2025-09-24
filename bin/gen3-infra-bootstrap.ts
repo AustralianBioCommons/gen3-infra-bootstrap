@@ -12,7 +12,7 @@ const namespace = process.env.NAMESPACE ?? app.node.tryGetContext("namespace");
 const masterSecretName = process.env.DB_MASTER_SECRET_NAME ?? app.node.tryGetContext("masterSecretName");
 
 // Optional feature toggles: comma-separated list (e.g., "metadataG3auto,wtsG3auto")
-const featuresCsv = process.env.FEATURES ?? app.node.tryGetContext("features") ?? "metadataG3auto,wtsG3auto,manifestserviceG3auto,auditGen3auto,ssjdispatcherCreds";
+const featuresCsv = process.env.FEATURES ?? app.node.tryGetContext("features") ?? "metadataG3auto,wtsG3auto,manifestserviceG3auto,auditGen3auto,ssjdispatcherCreds,pelicanserviceG3auto,fenceJwtPrivateKey";
 const features = featuresCsv.split(",").reduce((acc: Record<string, boolean>, f: string) => {
   const k = f.trim();
   if (k) acc[k] = true;
@@ -35,5 +35,6 @@ const iamStack = new Gen3IamStack(app, `Gen3-IamRoles-${project}-${envName}`, {
   env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
   project,
   envName,
-  namespace
+  namespace,
+  hostname,
 }).addDependency(infra);

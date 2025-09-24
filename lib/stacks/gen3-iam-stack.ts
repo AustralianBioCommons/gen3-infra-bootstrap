@@ -199,8 +199,10 @@ export class Gen3IamStack extends cdk.Stack {
             //     });
             // }
             const fenceRole = mk("fence", "fence-sa", [managed.S3UploadsRW], inline);
-            // allow the role to assume itself (for apps calling sts:AssumeRole)
-            const rolePath = `/gen3/${project}/${envName}/`; // you set this path in role creation
+
+            // ---- Allow this role to AssumeRole into itself, WITHOUT creating a CFN cycle
+            const rolePath = `/gen3/${project}/${envName}/`; // must match the 'path' you set on the role
+            const selfArnLiteral = `arn:${cdk.Stack.of(this).partition}:iam::${this.account}:role${rolePath}${fenceRole.roleName}`;
             const selfArn = cdk.Stack.of(this).formatArn({
                 service: "iam",
                 region: "",
@@ -210,13 +212,14 @@ export class Gen3IamStack extends cdk.Stack {
                 arnFormat: cdk.ArnFormat.SLASH_RESOURCE_NAME,
             });
 
-            fenceRole.assumeRolePolicy?.addStatements(
-                new iam.PolicyStatement({
-                    effect: iam.Effect.ALLOW,
-                    principals: [new iam.ArnPrincipal(selfArn)],
-                    actions: ["sts:AssumeRole"],
-                })
-            );
+            fenceRole.assumeRolePolicy!.addStatements(new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                principals: [new iam.AccountPrincipal(this.account)],  // no direct reference to the role
+                actions: ["sts:AssumeRole"],
+                conditions: {
+                    StringEquals: { "aws:PrincipalArn": selfArnLiteral }, // restrict strictly to this role
+                },
+            }));
 
         }
 

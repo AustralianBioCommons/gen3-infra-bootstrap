@@ -12,8 +12,8 @@ const envName = process.env.ENV_NAME ?? app.node.tryGetContext("envName");
 const hostname = process.env.HOSTNAME ?? app.node.tryGetContext("hostname");
 const namespace = process.env.NAMESPACE ?? app.node.tryGetContext("namespace");
 const masterSecretName = process.env.DB_MASTER_SECRET_NAME ?? app.node.tryGetContext("masterSecretName");
-const backupAccountId = (process.env.BACKUP_ACCOUNT_ID ?? cdk.App.of({} as any)?.node?.tryGetContext?.('backupAccountId') ?? '111122223333') as string;
-const destKmsKeyArn = (process.env.DEST_KMS_KEY_ARN ?? cdk.App.of({} as any)?.node?.tryGetContext?.('destKmsKeyArn') ?? 'arn:aws:kms:ap-southeast-2:111122223333:key/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx') as string;
+const backupAccountId = (process.env.BACKUP_ACCOUNT_ID ?? app.node.tryGetContext('backupAccountId') ?? '111122223333') as string;
+const destKmsKeyArn = (process.env.DEST_KMS_KEY_ARN ?? app.node.tryGetContext('destKmsKeyArn') ?? 'arn:aws:kms:ap-southeast-2:111122223333:key/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx') as string;
 
 
 // Optional feature toggles: comma-separated list (e.g., "metadataG3auto,wtsG3auto")
@@ -53,7 +53,7 @@ const destManifestBucketArn = `arn:aws:s3:::biocommons-backup-prod/manifest-${sa
 const destPelicanBucketArn = `arn:aws:s3:::biocommons-backup-prod/pelican-${safeHost}`;
 
 
-new ReplicationStack(app, `${project}-${envName}-replication`, {
+const repl = new ReplicationStack(app, `${project}-${envName}-replication`, {
   env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
   backupAccountId,
   rules: [
@@ -80,3 +80,5 @@ new ReplicationStack(app, `${project}-${envName}-replication`, {
     },
   ],
 });
+
+repl.addDependency(infra);

@@ -50,7 +50,7 @@ iamStack.addDependency(infra);
 
 
 
-if (!replicationEnabled) {
+if (replicationEnabled) {
 
   const safeHost = bucketSafeFromHostname(hostname);
   // Destination values from the backup account (pre-created)

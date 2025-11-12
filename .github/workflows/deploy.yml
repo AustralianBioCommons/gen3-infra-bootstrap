@@ -40,6 +40,8 @@ jobs:
           HOSTNAME: ${{ vars.HOSTNAME }}
           NAMESPACE: ${{ vars.NAMESPACE }}
           FEATURES: ${{ vars.FEATURES }}
+          BACKUP_ACCOUNT_ID: ${{ secrets.BACKUP_ACCOUNT_ID }}
+          REPLICATION_ENABLED: ${{ vars.REPLICATION_ENABLED || 'false' }}
           FORCE_RUN_TOKEN: ${{ github.sha }}
           DB_MASTER_SECRET_NAME: ${{ secrets.DB_MASTER_SECRET_NAME }}
           WTS_OIDC_CLIENT_ID: ${{ secrets.WTS_OIDC_CLIENT_ID }}
@@ -53,6 +55,8 @@ jobs:
           HOSTNAME: ${{ vars.HOSTNAME }}
           NAMESPACE: ${{ vars.NAMESPACE }}
           FEATURES: ${{ vars.FEATURES }}
+          BACKUP_ACCOUNT_ID: ${{ secrets.BACKUP_ACCOUNT_ID }}
+          REPLICATION_ENABLED: ${{ vars.REPLICATION_ENABLED || 'false' }}
           FORCE_RUN_TOKEN: ${{ github.sha }}
           DB_MASTER_SECRET_NAME: ${{ secrets.DB_MASTER_SECRET_NAME }}
           WTS_OIDC_CLIENT_ID: ${{ secrets.WTS_OIDC_CLIENT_ID }}

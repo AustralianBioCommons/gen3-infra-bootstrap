@@ -9,6 +9,7 @@ import * as sns from "aws-cdk-lib/aws-sns";
 import { SqsSubscription } from "aws-cdk-lib/aws-sns-subscriptions";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
 import * as kms from "aws-cdk-lib/aws-kms";
+import * as iam from "aws-cdk-lib/aws-iam";
 
 
 export interface InfraStackProps extends cdk.StackProps {
@@ -202,6 +203,45 @@ export class InfraStack extends cdk.Stack {
       parameterName: `/gen3/${project}-${envName}/kms/pelicanKeyArn`,
       stringValue: pelicanKey.keyArn,
     });
+
+
+
+    // Create the replication role in the SOURCE stack
+    const replicationRole = new iam.Role(this, 'S3ReplicationRole', {
+      roleName: `gen3-${project}-${envName}-s3-replication-role`,
+      path: `/gen3/${project}/${envName}/`,
+      assumedBy: new iam.ServicePrincipal('s3.amazonaws.com'),
+      description: `S3 replication role for ${project}-${envName}`,
+    });
+
+    // Grant permissions on the SOURCE bucket
+    replicationRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        's3:GetReplicationConfiguration',
+        's3:ListBucket',
+      ],
+      resources: [`${uploadsBucket.bucketArn}`, `${manifestBucket.bucketArn}`, `${pelicanBucket.bucketArn}`],
+    }));
+
+    replicationRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        's3:GetObjectVersionForReplication',
+        's3:GetObjectVersionAcl',
+        's3:GetObjectVersionTagging',
+        's3:GetObjectRetention',
+        's3:GetObjectLegalHold',
+      ],
+      resources: [`${uploadsBucket.bucketArn}/*`, `${manifestBucket.bucketArn}/*`, `${pelicanBucket.bucketArn}/*`],
+    }));
+
+    // Export the role ARN for use in the replication stack
+    new cdk.CfnOutput(this, 'ReplicationRoleArn', {
+      value: replicationRole.roleArn,
+      exportName: `Gen3-Infra-${project}-${envName}-ReplicationRoleArn`,
+    });
+
 
   }
 }

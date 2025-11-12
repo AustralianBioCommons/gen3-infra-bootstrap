@@ -14,45 +14,62 @@ export interface ReplicationRuleInput {
 export interface ReplicationStackProps extends cdk.StackProps {
     backupAccountId: string;
     rules: ReplicationRuleInput[]; // one entry per bucket (or per prefix)
+    /**
+     * ARN of the replication role created in the infra stack.
+     * This should be imported via Fn.importValue() from the source stack's export.
+     */
+    replicationRoleArn: string;
 }
 
 export class ReplicationStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props: ReplicationStackProps) {
         super(scope, id, props);
 
-        // One role used by all replication rules
-        const replRole = new iam.Role(this, "S3ReplicationRole", {
-            assumedBy: new iam.ServicePrincipal("s3.amazonaws.com"),
-            description: "Allows S3 to replicate objects to backup account buckets",
-        });
+        // Import the replication role from the source stack
+        // Use mutable: true to allow adding policies
+        const replRole = iam.Role.fromRoleArn(
+            this,
+            "ImportedReplicationRole",
+            props.replicationRoleArn,
+            {
+                mutable: true,
+            }
+        );
 
-        // Grant S3 perms for each source bucket
+        // Grant destination bucket permissions for each rule
         for (const r of props.rules) {
-            replRole.addToPolicy(new iam.PolicyStatement({
-                actions: ["s3:GetReplicationConfiguration", "s3:ListBucket"],
-                resources: [r.sourceBucket.bucketArn],
-            }));
-            replRole.addToPolicy(new iam.PolicyStatement({
+            // Add permissions for destination bucket
+            replRole.addToPrincipalPolicy(new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
                 actions: [
-                    "s3:GetObjectVersion",
-                    "s3:GetObjectVersionAcl",
-                    "s3:GetObjectVersionTagging",
                     "s3:ReplicateObject",
                     "s3:ReplicateDelete",
                     "s3:ReplicateTags",
+                    "s3:GetObjectVersionTagging",
                     "s3:ObjectOwnerOverrideToBucketOwner",
                 ],
-                resources: [`${r.sourceBucket.bucketArn}/*`],
+                resources: [`${r.destBucketArn}/*`],
+            }));
+
+            // Add KMS permissions for destination encryption
+            replRole.addToPrincipalPolicy(new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                actions: [
+                    "kms:Decrypt",
+                    "kms:Encrypt",
+                    "kms:ReEncrypt*",
+                    "kms:GenerateDataKey*",
+                    "kms:DescribeKey",
+                ],
+                resources: [r.destKmsKeyArn],
             }));
         }
 
         // Assign replicationConfiguration once per bucket
         for (const r of props.rules) {
             const cfn = r.sourceBucket.node.defaultChild as s3.CfnBucket;
-
             // IMPORTANT: ensure versioning enabled on the L2 bucket definition:
             //   new s3.Bucket(..., { versioned: true, ... })
-
             const rule: s3.CfnBucket.ReplicationRuleProperty = {
                 id: r.id ?? `${r.sourceBucket.bucketName}-to-backup`,
                 status: "Enabled",
@@ -67,9 +84,8 @@ export class ReplicationStack extends cdk.Stack {
                     metrics: { status: "Enabled" },
                 },
             };
-
             cfn.replicationConfiguration = {
-                role: replRole.roleArn,
+                role: props.replicationRoleArn, // Use the imported role ARN
                 rules: [rule],
             } as s3.CfnBucket.ReplicationConfigurationProperty;
         }

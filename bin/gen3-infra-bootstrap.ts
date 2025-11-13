@@ -59,6 +59,11 @@ if (replicationEnabled) {
   const destManifestBucketArn = `arn:aws:s3:::biocommons-backup-prod/manifest-${safeHost}`;
   const destPelicanBucketArn = `arn:aws:s3:::biocommons-backup-prod/pelican-${safeHost}`;
 
+  // KMS keys from backup account - GET THESE FROM YOUR BACKUP ACCOUNT DEPLOYMENT
+  const destUploadsKmsKeyArn = process.env.DEST_UPLOADS_KMS_KEY_ARN ?? app.node.tryGetContext('destUploadsKmsKeyArn') ?? 'arn:aws:kms:ap-southeast-2:111122223333:key/REPLACE-WITH-REAL-KEY-ID';
+  const destManifestKmsKeyArn = process.env.DEST_MANIFEST_KMS_KEY_ARN ?? app.node.tryGetContext('destManifestKmsKeyArn') ?? 'arn:aws:kms:ap-southeast-2:111122223333:key/REPLACE-WITH-REAL-KEY-ID';
+  const destPelicanKmsKeyArn = process.env.DEST_PELICAN_KMS_KEY_ARN ?? app.node.tryGetContext('destPelicanKmsKeyArn') ?? 'arn:aws:kms:ap-southeast-2:111122223333:key/REPLACE-WITH-REAL-KEY-ID';
+
   const repl = new ReplicationStack(app, `${project}-${envName}-replication`, {
     env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
     backupAccountId,
@@ -68,21 +73,21 @@ if (replicationEnabled) {
       {
         sourceBucket: infra.uploadsBucket,
         destBucketArn: destUploadsBucketArn,
-        destKmsKeyArn: destKmsKeyArn,
+        destKmsKeyArn: destUploadsKmsKeyArn,
         id: `uploads-${safeHost}-to-backup`,
         prefix: '',
       },
       {
         sourceBucket: infra.manifestBucket,
         destBucketArn: destManifestBucketArn,
-        destKmsKeyArn: destKmsKeyArn,
+        destKmsKeyArn: destManifestKmsKeyArn,
         id: `manifest-${safeHost}-to-backup`,
         prefix: '',
       },
       {
         sourceBucket: infra.pelicanBucket,
         destBucketArn: destPelicanBucketArn,
-        destKmsKeyArn: destKmsKeyArn,
+        destKmsKeyArn: destPelicanKmsKeyArn,
         id: `pelican-${safeHost}-to-backup`,
         prefix: '',
       },

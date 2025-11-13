@@ -26,7 +26,6 @@ export class ReplicationStack extends cdk.Stack {
         super(scope, id, props);
 
         // Import the replication role from the source stack
-        // Use mutable: true to allow adding policies
         const replRole = iam.Role.fromRoleArn(
             this,
             "ImportedReplicationRole",
@@ -39,37 +38,42 @@ export class ReplicationStack extends cdk.Stack {
         // Grant destination bucket permissions for each rule
         for (const r of props.rules) {
             // Add permissions for destination bucket
-            replRole.addToPrincipalPolicy(new iam.PolicyStatement({
-                effect: iam.Effect.ALLOW,
-                actions: [
-                    "s3:ReplicateObject",
-                    "s3:ReplicateDelete",
-                    "s3:ReplicateTags",
-                    "s3:GetObjectVersionTagging",
-                    "s3:ObjectOwnerOverrideToBucketOwner",
-                ],
-                resources: [`${r.destBucketArn}/*`],
-            }));
+            new iam.Policy(this, `ReplicationS3Policy-${r.id ?? r.sourceBucket.bucketName}`, {
+                statements: [new iam.PolicyStatement({
+                    effect: iam.Effect.ALLOW,
+                    actions: [
+                        "s3:ReplicateObject",
+                        "s3:ReplicateDelete",
+                        "s3:ReplicateTags",
+                        "s3:GetObjectVersionTagging",
+                        "s3:ObjectOwnerOverrideToBucketOwner",
+                    ],
+                    resources: [`${r.destBucketArn}/*`], // ← Fixed: added opening bracket
+                })],
+                roles: [replRole],
+            });
 
             // Add KMS permissions for destination encryption
-            replRole.addToPrincipalPolicy(new iam.PolicyStatement({
-                effect: iam.Effect.ALLOW,
-                actions: [
-                    "kms:Decrypt",
-                    "kms:Encrypt",
-                    "kms:ReEncrypt*",
-                    "kms:GenerateDataKey*",
-                    "kms:DescribeKey",
-                ],
-                resources: [r.destKmsKeyArn],
-            }));
+            new iam.Policy(this, `ReplicationKMSPolicy-${r.id ?? r.sourceBucket.bucketName}`, {
+                statements: [new iam.PolicyStatement({
+                    effect: iam.Effect.ALLOW,
+                    actions: [
+                        "kms:Decrypt",
+                        "kms:Encrypt",
+                        "kms:ReEncrypt*",
+                        "kms:GenerateDataKey*",
+                        "kms:DescribeKey",
+                    ],
+                    resources: [r.destKmsKeyArn],
+                })],
+                roles: [replRole],
+            });
         }
 
         // Assign replicationConfiguration once per bucket
         for (const r of props.rules) {
             const cfn = r.sourceBucket.node.defaultChild as s3.CfnBucket;
-            // IMPORTANT: ensure versioning enabled on the L2 bucket definition:
-            //   new s3.Bucket(..., { versioned: true, ... })
+
             const rule: s3.CfnBucket.ReplicationRuleProperty = {
                 id: r.id ?? `${r.sourceBucket.bucketName}-to-backup`,
                 status: "Enabled",
@@ -84,8 +88,9 @@ export class ReplicationStack extends cdk.Stack {
                     metrics: { status: "Enabled" },
                 },
             };
+
             cfn.replicationConfiguration = {
-                role: props.replicationRoleArn, // Use the imported role ARN
+                role: props.replicationRoleArn,
                 rules: [rule],
             } as s3.CfnBucket.ReplicationConfigurationProperty;
         }

@@ -5,5 +5,7 @@
   "ssm:account=416298298491:parameterName=/gen3/acdc-prodacdc/sqs/ssjdispatcherQueueArn:region=ap-southeast-2": "arn:aws:sqs:ap-southeast-2:416298298491:data-upload-acdc-prodacdc",
   "ssm:account=416298298491:parameterName=/gen3/acdc-prodacdc/opensearch/domainArn:region=ap-southeast-2": "arn:aws:es:ap-southeast-2:416298298491:domain/cad-prodacdc",
   "ssm:account=416298298491:parameterName=/gen3/acdc-prodacdc/oidcProviderArn:region=ap-southeast-2": "arn:aws:iam::416298298491:oidc-provider/oidc.eks.ap-southeast-2.amazonaws.com/id/1D3A5EA9403A66FCB8018DB83818A717",
-  "ssm:account=416298298491:parameterName=/gen3/acdc-prodacdc/clusterName:region=ap-southeast-2": "gen3-cad-production"
+  "ssm:account=416298298491:parameterName=/gen3/acdc-prodacdc/clusterName:region=ap-southeast-2": "gen3-cad-production",
+  "ssm:account=416298298491:parameterName=/gen3/acdc-prodacdc/kms/uploadsKeyArn:region=ap-southeast-2": "arn:aws:kms:ap-southeast-2:416298298491:key/2a6992a8-95c8-44ce-97a2-ab581d8904f8",
+  "ssm:account=416298298491:parameterName=/gen3/acdc-prodacdc/kms/manifestKeyArn:region=ap-southeast-2": "arn:aws:kms:ap-southeast-2:416298298491:key/f6bcbc61-53fe-44ae-b204-c059975c7b04"
 }

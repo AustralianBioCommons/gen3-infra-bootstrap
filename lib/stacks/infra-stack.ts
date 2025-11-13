@@ -70,7 +70,7 @@ export class InfraStack extends cdk.Stack {
     this.pelicanBucket = pelicanBucket;
 
     const manifestBucket = new s3.Bucket(this, "ManifestBucket", {
-      bucketName: `manifest-${safeHost}`, // e.g., manifest-omix3-test-biocommons-org-au
+      bucketName: `manifest-${safeHost}`, // e.g., manifest-commons-heartdata-baker-edu-au
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.KMS,
       encryptionKey: manifestKey,
@@ -80,7 +80,7 @@ export class InfraStack extends cdk.Stack {
     this.manifestBucket = manifestBucket;
 
     const uploadsBucket = new s3.Bucket(this, "UploadsBucket", {
-      bucketName: `uploads-${safeHost}`, // e.g., uploads-omix3-test-biocommons-org-au
+      bucketName: `uploads-${safeHost}`, // e.g., uploads-commons-heartdata-baker-edu-au
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.KMS,
       encryptionKey: uploadsKey,
@@ -234,6 +234,12 @@ export class InfraStack extends cdk.Stack {
         's3:GetObjectLegalHold',
       ],
       resources: [`${uploadsBucket.bucketArn}/*`, `${manifestBucket.bucketArn}/*`, `${pelicanBucket.bucketArn}/*`],
+    }));
+
+    replicationRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['kms:Decrypt', 'kms:DescribeKey'],
+      resources: [uploadsKey.keyArn, manifestKey.keyArn, pelicanKey.keyArn],
     }));
 
     // Export the role ARN for use in the replication stack

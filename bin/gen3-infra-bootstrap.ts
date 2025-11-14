@@ -55,9 +55,9 @@ if (replicationEnabled) {
   const safeHost = bucketSafeFromHostname(hostname);
   // Destination values from the backup account (pre-created)
 
-  const destUploadsBucketArn = `arn:aws:s3:::biocommons-backup-prod/uploads-${safeHost}`;
-  const destManifestBucketArn = `arn:aws:s3:::biocommons-backup-prod/manifest-${safeHost}`;
-  const destPelicanBucketArn = `arn:aws:s3:::biocommons-backup-prod/pelican-${safeHost}`;
+  const destUploadsBucketArn = `arn:aws:s3:::backup-acdc-prod-uploads`;
+  const destManifestBucketArn = `arn:aws:s3:::backup-acdc-prod-manifest`;
+  const destPelicanBucketArn = `arn:aws:s3:::backup-acdc-prod-pelican`;
 
   // KMS keys from backup account - GET THESE FROM YOUR BACKUP ACCOUNT DEPLOYMENT
   const destUploadsKmsKeyArn = process.env.DEST_UPLOADS_KMS_KEY_ARN ?? app.node.tryGetContext('destUploadsKmsKeyArn') ?? 'arn:aws:kms:ap-southeast-2:111122223333:key/REPLACE-WITH-REAL-KEY-ID';

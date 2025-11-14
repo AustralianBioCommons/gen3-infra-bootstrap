@@ -80,6 +80,11 @@ export class ReplicationStack extends cdk.Stack {
                 priority: 1,
                 filter: { prefix: r.prefix ?? "" },
                 deleteMarkerReplication: { status: "Disabled" },
+                sourceSelectionCriteria: {
+                    sseKmsEncryptedObjects: {
+                        status: "Enabled"
+                    }
+                },
                 destination: {
                     bucket: r.destBucketArn,
                     account: props.backupAccountId,

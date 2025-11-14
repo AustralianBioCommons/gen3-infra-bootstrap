@@ -37,37 +37,31 @@ export class ReplicationStack extends cdk.Stack {
 
         // Grant destination bucket permissions for each rule
         for (const r of props.rules) {
-            // Add permissions for destination bucket
-            new iam.Policy(this, `ReplicationS3Policy-${r.id ?? r.sourceBucket.bucketName}`, {
-                statements: [new iam.PolicyStatement({
-                    effect: iam.Effect.ALLOW,
-                    actions: [
-                        "s3:ReplicateObject",
-                        "s3:ReplicateDelete",
-                        "s3:ReplicateTags",
-                        "s3:GetObjectVersionTagging",
-                        "s3:ObjectOwnerOverrideToBucketOwner",
-                    ],
-                    resources: [`${r.destBucketArn}/*`], // ← Fixed: added opening bracket
-                })],
-                roles: [replRole],
-            });
+            // Add permissions for destination bucket using addToPrincipalPolicy
+            replRole.addToPrincipalPolicy(new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                actions: [
+                    "s3:ReplicateObject",
+                    "s3:ReplicateDelete",
+                    "s3:ReplicateTags",
+                    "s3:GetObjectVersionTagging",
+                    "s3:ObjectOwnerOverrideToBucketOwner",
+                ],
+                resources: [`${r.destBucketArn}/*`],
+            }));
 
-            // Add KMS permissions for destination encryption
-            new iam.Policy(this, `ReplicationKMSPolicy-${r.id ?? r.sourceBucket.bucketName}`, {
-                statements: [new iam.PolicyStatement({
-                    effect: iam.Effect.ALLOW,
-                    actions: [
-                        "kms:Decrypt",
-                        "kms:Encrypt",
-                        "kms:ReEncrypt*",
-                        "kms:GenerateDataKey*",
-                        "kms:DescribeKey",
-                    ],
-                    resources: [r.destKmsKeyArn],
-                })],
-                roles: [replRole],
-            });
+            // Add KMS permissions for destination encryption using addToPrincipalPolicy
+            replRole.addToPrincipalPolicy(new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                actions: [
+                    "kms:Decrypt",
+                    "kms:Encrypt",
+                    "kms:ReEncrypt*",
+                    "kms:GenerateDataKey*",
+                    "kms:DescribeKey",
+                ],
+                resources: [r.destKmsKeyArn],
+            }));
         }
 
         // Assign replicationConfiguration once per bucket

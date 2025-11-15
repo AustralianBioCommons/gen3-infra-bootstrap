@@ -243,6 +243,14 @@ export class InfraStack extends cdk.Stack {
       resources: [uploadsKey.keyArn, manifestKey.keyArn, pelicanKey.keyArn],
     }));
 
+    if (props.backupKMSKeyArn) {
+      replicationRole.addToPolicy(new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ['kms:Decrypt', 'kms:DescribeKey', 'kms:Encrypt', 'kms:ReEncrypt*', 'kms:GenerateDataKey*'],
+        resources: props.backupKMSKeyArn,
+      }));
+    }
+
     // Export the role ARN for use in the replication stack
     new cdk.CfnOutput(this, 'ReplicationRoleArn', {
       value: replicationRole.roleArn,

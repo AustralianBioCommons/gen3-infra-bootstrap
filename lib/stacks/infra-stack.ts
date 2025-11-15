@@ -25,6 +25,7 @@ export interface InfraStackProps extends cdk.StackProps {
     ssjdispatcherCreds?: boolean;
     fenceJwtPrivateKey?: boolean,
   };
+  backupKMSKeyArn?: string[];
 }
 
 export class InfraStack extends cdk.Stack {

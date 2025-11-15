@@ -14,8 +14,11 @@ const namespace = process.env.NAMESPACE ?? app.node.tryGetContext("namespace");
 const replicationEnabled = (process.env.REPLICATION_ENABLED ?? app.node.tryGetContext("replicationEnabled") ?? "true").toLowerCase() === "true";
 const masterSecretName = process.env.DB_MASTER_SECRET_NAME ?? app.node.tryGetContext("masterSecretName");
 const backupAccountId = (process.env.BACKUP_ACCOUNT_ID ?? app.node.tryGetContext('backupAccountId') ?? '111122223333') as string;
-const destKmsKeyArn = (process.env.DEST_KMS_KEY_ARN ?? app.node.tryGetContext('destKmsKeyArn') ?? 'arn:aws:kms:ap-southeast-2:111122223333:key/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx') as string;
 
+// KMS keys from backup account - GET THESE FROM YOUR BACKUP ACCOUNT DEPLOYMENT
+const destUploadsKmsKeyArn = process.env.DEST_UPLOADS_KMS_KEY_ARN ?? app.node.tryGetContext('destUploadsKmsKeyArn') ?? 'arn:aws:kms:ap-southeast-2:111122223333:key/REPLACE-WITH-REAL-KEY-ID';
+const destManifestKmsKeyArn = process.env.DEST_MANIFEST_KMS_KEY_ARN ?? app.node.tryGetContext('destManifestKmsKeyArn') ?? 'arn:aws:kms:ap-southeast-2:111122223333:key/REPLACE-WITH-REAL-KEY-ID';
+const destPelicanKmsKeyArn = process.env.DEST_PELICAN_KMS_KEY_ARN ?? app.node.tryGetContext('destPelicanKmsKeyArn') ?? 'arn:aws:kms:ap-southeast-2:111122223333:key/REPLACE-WITH-REAL-KEY-ID';
 
 // Optional feature toggles: comma-separated list (e.g., "metadataG3auto,wtsG3auto")
 const featuresCsv = process.env.FEATURES ?? app.node.tryGetContext("features") ?? "metadataG3auto,wtsG3auto,manifestserviceG3auto,auditGen3auto,ssjdispatcherCreds,pelicanserviceG3auto,fenceJwtPrivateKey";
@@ -35,6 +38,7 @@ const infra = new InfraStack(app, `Gen3-Infra-${project}-${envName}`, {
   envName,
   hostname,
   features,
+  backupKMSKeyArn: [destUploadsKmsKeyArn, destManifestKmsKeyArn, destPelicanKmsKeyArn],
 });
 
 const iamStack = new Gen3IamStack(app, `Gen3-IamRoles-${project}-${envName}`, {
@@ -49,7 +53,6 @@ iamStack.addDependency(infra);
 
 
 
-
 if (replicationEnabled) {
 
   const safeHost = bucketSafeFromHostname(hostname);
@@ -58,12 +61,6 @@ if (replicationEnabled) {
   const destUploadsBucketArn = `arn:aws:s3:::backup-acdc-prod-uploads`;
   const destManifestBucketArn = `arn:aws:s3:::backup-acdc-prod-manifest`;
   const destPelicanBucketArn = `arn:aws:s3:::backup-acdc-prod-pelican`;
-
-  // KMS keys from backup account - GET THESE FROM YOUR BACKUP ACCOUNT DEPLOYMENT
-  const destUploadsKmsKeyArn = process.env.DEST_UPLOADS_KMS_KEY_ARN ?? app.node.tryGetContext('destUploadsKmsKeyArn') ?? 'arn:aws:kms:ap-southeast-2:111122223333:key/REPLACE-WITH-REAL-KEY-ID';
-  const destManifestKmsKeyArn = process.env.DEST_MANIFEST_KMS_KEY_ARN ?? app.node.tryGetContext('destManifestKmsKeyArn') ?? 'arn:aws:kms:ap-southeast-2:111122223333:key/REPLACE-WITH-REAL-KEY-ID';
-  const destPelicanKmsKeyArn = process.env.DEST_PELICAN_KMS_KEY_ARN ?? app.node.tryGetContext('destPelicanKmsKeyArn') ?? 'arn:aws:kms:ap-southeast-2:111122223333:key/REPLACE-WITH-REAL-KEY-ID';
-
   const repl = new ReplicationStack(app, `${project}-${envName}-replication`, {
     env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
     backupAccountId,

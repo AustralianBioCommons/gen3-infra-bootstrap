@@ -8,6 +8,9 @@ import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as sns from "aws-cdk-lib/aws-sns";
 import { SqsSubscription } from "aws-cdk-lib/aws-sns-subscriptions";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
+import * as kms from "aws-cdk-lib/aws-kms";
+import * as iam from "aws-cdk-lib/aws-iam";
+
 
 export interface InfraStackProps extends cdk.StackProps {
   project: string;
@@ -22,35 +25,72 @@ export interface InfraStackProps extends cdk.StackProps {
     ssjdispatcherCreds?: boolean;
     fenceJwtPrivateKey?: boolean,
   };
+  backupKMSKeyArn?: string[];
+  destBucketArns?: string[];
 }
 
 export class InfraStack extends cdk.Stack {
+
+  public readonly uploadsBucket: s3.Bucket;
+  public readonly manifestBucket: s3.Bucket;
+  public readonly pelicanBucket: s3.Bucket;
+
   constructor(scope: Construct, id: string, props: InfraStackProps) {
     super(scope, id, props);
 
     const { project, envName, hostname, features } = props;
 
-    // Example infra used by secrets
+    // --- KMS keys for Gen3 app buckets ---
+    const uploadsKey = new kms.Key(this, "UploadsKmsKey", {
+      alias: `alias/${project}-${envName}-uploads-s3`,
+      enableKeyRotation: true,
+      description: `KMS key for uploads bucket (${project}/${envName})`,
+    });
+
+    const manifestKey = new kms.Key(this, "ManifestKmsKey", {
+      alias: `alias/${project}-${envName}-manifest-s3`,
+      enableKeyRotation: true,
+      description: `KMS key for manifest bucket (${project}/${envName})`,
+    });
+
+    const pelicanKey = new kms.Key(this, "PelicanKmsKey", {
+      alias: `alias/${project}-${envName}-pelican-s3`,
+      enableKeyRotation: true,
+      description: `KMS key for pelican bucket (${project}/${envName})`,
+    });
+
     const safeHost = bucketSafeFromHostname(hostname);
 
     const pelicanBucket = new s3.Bucket(this, "PelicanBucket", {
       bucketName: `pelican-${safeHost}`, // e.g., pelican-commons-heartdata-baker-edu-au
-      encryption: s3.BucketEncryption.S3_MANAGED,
+      encryption: s3.BucketEncryption.KMS,
+      encryptionKey: pelicanKey,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      versioned: true,
     });
+
+    this.pelicanBucket = pelicanBucket;
 
     const manifestBucket = new s3.Bucket(this, "ManifestBucket", {
-      bucketName: `manifest-${safeHost}`, // e.g., manifest-omix3-test-biocommons-org-au
+      bucketName: `manifest-${safeHost}`, // e.g., manifest-commons-heartdata-baker-edu-au
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      encryption: s3.BucketEncryption.S3_MANAGED,
+      encryption: s3.BucketEncryption.KMS,
+      encryptionKey: manifestKey,
+      versioned: true,
     });
 
+    this.manifestBucket = manifestBucket;
+
     const uploadsBucket = new s3.Bucket(this, "UploadsBucket", {
-      bucketName: `uploads-${safeHost}`, // e.g., uploads-omix3-test-biocommons-org-au
+      bucketName: `uploads-${safeHost}`, // e.g., uploads-commons-heartdata-baker-edu-au
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      encryption: s3.BucketEncryption.S3_MANAGED,
+      encryption: s3.BucketEncryption.KMS,
+      encryptionKey: uploadsKey,
+      versioned: true,
       eventBridgeEnabled: true,
     });
+
+    this.uploadsBucket = uploadsBucket;
 
     // --- SNS topic for upload notifications ---
     const uploadTopic = new sns.Topic(this, "DataUploadTopic", {
@@ -151,6 +191,85 @@ export class InfraStack extends cdk.Stack {
       parameterName: `/gen3/${project}-${envName}/sqs/ssjdispatcherQueueArn`,
       stringValue: dataUploadQueue.queueArn,
     });
+
+    // KMS Key ARNs SSM parameters
+    new ssm.StringParameter(this, "UploadsKeyArnParam", {
+      parameterName: `/gen3/${project}-${envName}/kms/uploadsKeyArn`,
+      stringValue: uploadsKey.keyArn,
+    });
+    new ssm.StringParameter(this, "ManifestKeyArnParam", {
+      parameterName: `/gen3/${project}-${envName}/kms/manifestKeyArn`,
+      stringValue: manifestKey.keyArn,
+    });
+    new ssm.StringParameter(this, "PelicanKeyArnParam", {
+      parameterName: `/gen3/${project}-${envName}/kms/pelicanKeyArn`,
+      stringValue: pelicanKey.keyArn,
+    });
+
+
+
+    // Create the replication role in the SOURCE stack
+    const replicationRole = new iam.Role(this, 'S3ReplicationRole', {
+      roleName: `gen3-${project}-${envName}-s3-replication-role`,
+      path: `/gen3/${project}/${envName}/`,
+      assumedBy: new iam.ServicePrincipal('s3.amazonaws.com'),
+      description: `S3 replication role for ${project}-${envName}`,
+    });
+
+    // Grant permissions on the SOURCE bucket
+    replicationRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        's3:GetReplicationConfiguration',
+        's3:ListBucket',
+      ],
+      resources: [`${uploadsBucket.bucketArn}`, `${manifestBucket.bucketArn}`, `${pelicanBucket.bucketArn}`],
+    }));
+
+    replicationRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        's3:GetObjectVersionForReplication',
+        's3:GetObjectVersionAcl',
+        's3:GetObjectVersionTagging',
+        's3:GetObjectRetention',
+        's3:GetObjectLegalHold',
+      ],
+      resources: [`${uploadsBucket.bucketArn}/*`, `${manifestBucket.bucketArn}/*`, `${pelicanBucket.bucketArn}/*`],
+    }));
+
+    replicationRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['kms:Decrypt', 'kms:DescribeKey'],
+      resources: [uploadsKey.keyArn, manifestKey.keyArn, pelicanKey.keyArn],
+    }));
+
+    if (props.backupKMSKeyArn) {
+      replicationRole.addToPolicy(new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ['kms:Decrypt', 'kms:DescribeKey', 'kms:Encrypt', 'kms:ReEncrypt*', 'kms:GenerateDataKey*'],
+        resources: props.backupKMSKeyArn,
+      }));
+    }
+
+    replicationRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        's3:ReplicateObject',
+        's3:ReplicateDelete',
+        's3:ReplicateTags',
+        's3:GetObjectVersionTagging',
+        's3:ObjectOwnerOverrideToBucketOwner',
+      ],
+      resources: props.destBucketArns,
+    }));
+
+    // Export the role ARN for use in the replication stack
+    new cdk.CfnOutput(this, 'ReplicationRoleArn', {
+      value: replicationRole.roleArn,
+      exportName: `Gen3-Infra-${project}-${envName}-ReplicationRoleArn`,
+    });
+
 
   }
 }

@@ -40,10 +40,16 @@ jobs:
           HOSTNAME: ${{ vars.HOSTNAME }}
           NAMESPACE: ${{ vars.NAMESPACE }}
           FEATURES: ${{ vars.FEATURES }}
+          BACKUP_ACCOUNT_ID: ${{ secrets.BACKUP_ACCOUNT_ID }}
+          REPLICATION_ENABLED: ${{ vars.REPLICATION_ENABLED || 'false' }}
           FORCE_RUN_TOKEN: ${{ github.sha }}
           DB_MASTER_SECRET_NAME: ${{ secrets.DB_MASTER_SECRET_NAME }}
           WTS_OIDC_CLIENT_ID: ${{ secrets.WTS_OIDC_CLIENT_ID }}
           WTS_OIDC_CLIENT_SECRET: ${{ secrets.WTS_OIDC_CLIENT_SECRET }}
+          DEST_MANIFEST_KMS_KEY_ARN: ${{ secrets.DEST_MANIFEST_KMS_KEY_ARN }}
+          DEST_UPLOADS_KMS_KEY_ARN: ${{ secrets.DEST_UPLOADS_KMS_KEY_ARN }}
+          DEST_PELICAN_KMS_KEY_ARN: ${{ secrets.DEST_PELICAN_KMS_KEY_ARN }}
+
         run: npx cdk synth
 
       - name: CDK deploy
@@ -53,8 +59,13 @@ jobs:
           HOSTNAME: ${{ vars.HOSTNAME }}
           NAMESPACE: ${{ vars.NAMESPACE }}
           FEATURES: ${{ vars.FEATURES }}
+          BACKUP_ACCOUNT_ID: ${{ secrets.BACKUP_ACCOUNT_ID }}
+          REPLICATION_ENABLED: ${{ vars.REPLICATION_ENABLED || 'false' }}
           FORCE_RUN_TOKEN: ${{ github.sha }}
           DB_MASTER_SECRET_NAME: ${{ secrets.DB_MASTER_SECRET_NAME }}
           WTS_OIDC_CLIENT_ID: ${{ secrets.WTS_OIDC_CLIENT_ID }}
           WTS_OIDC_CLIENT_SECRET: ${{ secrets.WTS_OIDC_CLIENT_SECRET }}
+          DEST_MANIFEST_KMS_KEY_ARN: ${{ secrets.DEST_MANIFEST_KMS_KEY_ARN }}
+          DEST_UPLOADS_KMS_KEY_ARN: ${{ secrets.DEST_UPLOADS_KMS_KEY_ARN }}
+          DEST_PELICAN_KMS_KEY_ARN: ${{ secrets.DEST_PELICAN_KMS_KEY_ARN }}
         run: npx cdk deploy --all --require-approval=never

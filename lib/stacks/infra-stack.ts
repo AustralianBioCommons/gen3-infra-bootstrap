@@ -26,6 +26,7 @@ export interface InfraStackProps extends cdk.StackProps {
     fenceJwtPrivateKey?: boolean,
   };
   backupKMSKeyArn?: string[];
+  destBucketArns?: string[];
 }
 
 export class InfraStack extends cdk.Stack {
@@ -250,6 +251,18 @@ export class InfraStack extends cdk.Stack {
         resources: props.backupKMSKeyArn,
       }));
     }
+
+    replicationRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        's3:ReplicateObject',
+        's3:ReplicateDelete',
+        's3:ReplicateTags',
+        's3:GetObjectVersionTagging',
+        's3:ObjectOwnerOverrideToBucketOwner',
+      ],
+      resources: props.destBucketArns,
+    }));
 
     // Export the role ARN for use in the replication stack
     new cdk.CfnOutput(this, 'ReplicationRoleArn', {
